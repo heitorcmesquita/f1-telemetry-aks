@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: f1-producer
+  labels:
+    app: f1-producer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: f1-producer
+  template:
+    metadata:
+      labels:
+        app: f1-producer
+    spec:
+      containers:
+        - name: f1-producer
+          image: python:3.11-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              apt-get update -qq && apt-get install -y curl --quiet &&
+              pip install requests azure-eventhub --quiet &&
+              curl -s "$SCRIPT_URL" -o producer_race.py &&
+              python producer_race.py
+          env:
+            - name: EVENTHUB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: f1-secrets
+                  key: eventhub-connection-string
+            - name: EVENTHUB_POSITIONS
+              value: "f1-positions"
+            - name: EVENTHUB_LAPS
+              value: "f1-laps"
+            - name: EVENTHUB_TELEMETRY
+              value: "f1-telemetry"
+            - name: EVENTHUB_WEATHER
+              value: "f1-weather"
+            - name: SCRIPT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: f1-secrets
+                  key: script-url
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: f1-producer-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: f1-producer
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

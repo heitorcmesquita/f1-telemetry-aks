@@ -1,0 +1,43 @@
+# TERRAFORM VARIABLES TEMPLATE
+# ============================================================
+# Copy this file to terraform.tfvars and fill in your values
+# terraform.tfvars is in .gitignore and should NEVER be committed
+#
+# To use: cp terraform.tfvars.example terraform.tfvars
+#         (then edit terraform.tfvars with your actual values)
+# ============================================================
+
+# Azure subscription ID (get from: az account show --query id -o tsv)
+subscription_id = "YOUR_SUBSCRIPTION_ID_HERE"
+
+# Optional: Override resource location (default: East US)
+# location = "East US"
+
+# Optional: Override resource prefix (default: openf1)
+# prefix = "openf1"
+
+# ============================================================
+# SENSITIVE VALUES - KEEP THESE SECURE!
+# ============================================================
+
+# SQL Server admin password - must meet Azure SQL requirements
+# Requirements: 8+ chars, uppercase, lowercase, number, special char
+# Example: "MyP@ssw0rd!F1Racing"
+sql_admin_password = "YOUR_SQL_PASSWORD_HERE"
+
+# Grafana dashboard admin password
+# Example: "MyGrafan@Dashboard2024"
+grafana_password = "YOUR_GRAFANA_PASSWORD_HERE"
+
+# ============================================================
+# SECURITY NOTES
+# ============================================================
+# 1. Create a unique password for each variable above
+# 2. Never commit terraform.tfvars to Git
+# 3. Share credentials with team members out-of-band (Slack, etc)
+# 4. The Key Vault will securely store these values in Azure
+# 5. To apply: terraform apply -var-file="terraform.tfvars"
+# 6. Or use environment variables:
+#    export TF_VAR_subscription_id="..."
+#    export TF_VAR_sql_admin_password="..."
+#    export TF_VAR_grafana_password="..."
