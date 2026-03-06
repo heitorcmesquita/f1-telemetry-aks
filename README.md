@@ -1,4 +1,4 @@
-﻿# F1 Pipeline (OpenF1)
+﻿# F1 Live Telemetry Pipeline (OpenF1)
 
 This repository deploys a complete **race telemetry pipeline** on Azure.
 It ingests live F1 data via an open API, streams it through **Azure Event Hubs**, processes it with **Stream Analytics**, and visualizes it in **Grafana**.
@@ -22,6 +22,19 @@ It ingests live F1 data via an open API, streams it through **Azure Event Hubs**
 3. Stream Analytics writes processed data into **Azure SQL** (used by Grafana dashboards).
 4. **Grafana** runs in Azure Container Instances (ACI) and presents a public dashboard.
 5. **AKS** runs the producer deployment, which is manually started/stopped.
+
+---
+
+## 🗄️ SQL tables populated by the pipeline
+
+The Stream Analytics job writes data into these SQL tables (via output aliases):
+
+| Table name | Source | Notes |
+|-----------|--------|-------|
+| `sql-positions-output` | `eventhub-positions-input` | Driver position updates |
+| `sql-laps-output` | `eventhub-laps-input` | Lap timings and durations |
+| `sql-telemetry-output` | `eventhub-telemetry-input` | Car telemetry (speed, RPM, throttle, etc.) |
+| `sql-weather-output` | `eventhub-weather-input` | Weather & track conditions |
 
 ---
 
@@ -173,6 +186,78 @@ Retrieve it with:
 ```powershell
 az keyvault secret show --vault-name <your-keyvault-name> --name sql-admin-password --query value -o tsv
 ```
+
+### (D) (Optional) Manually create Event Hubs & SQL tables
+
+Terraform creates these resources automatically, but if you want to create them manually (or inspect them):
+
+#### Event Hubs namespace + hubs (via CLI)
+
+```powershell
+# Create namespace (if not already created)
+az eventhubs namespace create --name <prefix>-eventhub --resource-group <prefix>-rg --sku Standard
+
+# Create the required hubs
+az eventhubs eventhub create --name f1-positions --resource-group <prefix>-rg --namespace-name <prefix>-eventhub --partition-count 4 --message-retention 1
+az eventhubs eventhub create --name f1-laps --resource-group <prefix>-rg --namespace-name <prefix>-eventhub --partition-count 4 --message-retention 1
+az eventhubs eventhub create --name f1-telemetry --resource-group <prefix>-rg --namespace-name <prefix>-eventhub --partition-count 4 --message-retention 1
+az eventhubs eventhub create --name f1-weather --resource-group <prefix>-rg --namespace-name <prefix>-eventhub --partition-count 2 --message-retention 1
+```
+
+#### SQL tables (via `az sql db query`)
+
+Run these queries against the database created by Terraform:
+
+```powershell
+az sql db query \
+  --name f1db \
+  --server <your-sql-server-name> \
+  --resource-group <prefix>-rg \
+  --admin-user openf1admin \
+  --admin-password <your-sql-password> \
+  --query "
+CREATE TABLE IF NOT EXISTS sql_positions_output (
+  session_key nvarchar(50),
+  driver_number int,
+  position int,
+  date datetime2,
+  processed_at datetime2
+);
+
+CREATE TABLE IF NOT EXISTS sql_laps_output (
+  session_key nvarchar(50),
+  driver_number int,
+  lap_number int,
+  lap_duration float,
+  date_start datetime2,
+  processed_at datetime2
+);
+
+CREATE TABLE IF NOT EXISTS sql_telemetry_output (
+  session_key nvarchar(50),
+  driver_number int,
+  speed float,
+  rpm float,
+  throttle float,
+  brake float,
+  date datetime2,
+  processed_at datetime2
+);
+
+CREATE TABLE IF NOT EXISTS sql_weather_output (
+  session_key nvarchar(50),
+  air_temperature float,
+  humidity float,
+  pressure float,
+  rainfall float,
+  wind_speed float,
+  date datetime2,
+  processed_at datetime2
+);
+" 
+```
+
+> These tables are named after the Stream Analytics output aliases used by the pipeline.
 
 ---
 
